@@ -46,7 +46,7 @@ namespace PennedObjects.RateLimiting
         /// <param name="occurrences">The number of occurrences allowed per unit of time.</param>
         /// <param name="timeUnit">The length of the time unit.</param>
         /// <exception cref="ArgumentOutOfRangeException">
-        ///     Thrown when <paramref name="occurrences"/> is less than or equal to zero, or when <paramref name="timeUnit"/> 
+        ///     Thrown when <paramref name="occurrences"/> is less than or equal to zero, or when <paramref name="timeUnit"/>
         ///     is not a positive span of time, or when <paramref name="timeUnit"/> is greater than or equal to 2^32 milliseconds.
         /// </exception>
         public RateGate(int occurrences, TimeSpan timeUnit)
@@ -93,10 +93,10 @@ namespace PennedObjects.RateLimiting
         }
 
         /// <summary>
-        /// Callback for the exit timer that exits the semaphore based on exit times 
-        /// in the queue and then sets the timer for the nextexit time.
+        /// Callback for the exit timer that exits the semaphore based on exit times
+        /// in the queue and then sets the timer for the next exit time.
         /// </summary>
-        /// <param name="state"></param>
+        /// <param name="state">An object containing information to be used by the callback method.</param>
         private void ExitTimerCallback(object state)
         {
             // While there are exit times that are passed due still in the queue,
