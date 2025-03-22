@@ -26,12 +26,12 @@ namespace PennedObjects.RateLimiting {
         /// <summary>
         /// Timer used to trigger exiting the semaphore.
         /// </summary>
-        private readonly Timer _exitTimer;
-        private readonly ConcurrentQueue<int> _exitTimes;
+        private Timer _exitTimer;
+        private ConcurrentQueue<int> _exitTimes;
         /// <summary>
         /// Semaphore used to count and limit the number of occurrences per
         /// </summary>
-        private readonly SemaphoreSlim _semaphore;
+        private SemaphoreSlim _semaphore;
 
         /// <summary>
         ///  Whether this instance is disposed.
@@ -170,16 +170,21 @@ namespace PennedObjects.RateLimiting {
         ///     Releases unmanaged resources held by an instance of this class.
         /// </summary>
         /// <param name="isDisposing">Whether this object is being disposed.</param>
-        protected virtual void Dispose(bool isDisposing) {
-            if (!_isDisposed) {
-                if (isDisposing) {
-                    // The semaphore and timer both implement IDisposable and 
-                    // therefore must be disposed.
-                    _semaphore.Dispose();
-                    _exitTimer.Dispose();
+        protected virtual void Dispose(bool isDisposing)
+        {
+            if (!_isDisposed && isDisposing)
+            {
+                // The semaphore and timer both implement IDisposable and 
+                // therefore must be disposed.
+                // Explicitly set the members to null to cause NullReferenceException
+                // if someone tries to use this object after it's disposed.
+                _semaphore.Dispose();
+                _semaphore = null;
+                _exitTimer.Dispose();
+                _exitTimer = null;
+                _exitTimes = null;
 
-                    _isDisposed = true;
-                }
+                _isDisposed = true;
             }
         }
     }
