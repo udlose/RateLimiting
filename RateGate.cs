@@ -76,12 +76,12 @@ namespace PennedObjects.RateLimiting
         /// <summary>
         ///     Number of occurrences allowed per unit of time.
         /// </summary>
-        public int Occurrences { get; private set; }
+        public int Occurrences { get; }
 
         /// <summary>
         ///     The length of the time unit, in milliseconds.
         /// </summary>
-        public int TimeUnitMilliseconds { get; private set; }
+        public int TimeUnitMilliseconds { get; }
 
         /// <summary>
         ///     Releases unmanaged resources held by an instance of this class.
