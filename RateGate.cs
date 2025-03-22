@@ -126,7 +126,7 @@ namespace PennedObjects.RateLimiting {
         public bool WaitToProceed(int millisecondsTimeout) {
             // Check the arguments.
             if (millisecondsTimeout < -1)
-                throw new ArgumentOutOfRangeException("millisecondsTimeout");
+                throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
 
             CheckDisposed();
 
@@ -163,7 +163,7 @@ namespace PennedObjects.RateLimiting {
         // Throws an ObjectDisposedException if this object is disposed.
         private void CheckDisposed() {
             if (_isDisposed)
-                throw new ObjectDisposedException("RateGate is already disposed");
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
         }
 
         /// <summary>
