@@ -190,6 +190,9 @@ namespace PennedObjects.RateLimiting
         {
             if (Interlocked.CompareExchange(ref _isDisposed, 1, 0) == 0 && isDisposing)
             {
+                // Cancel the timer first to prevent new callbacks
+                _exitTimer.Change(Timeout.Infinite, Timeout.Infinite);
+
                 // The semaphore and timer both implement IDisposable and 
                 // therefore must be disposed.
                 // Explicitly set the members to null to cause NullReferenceException
