@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace PennedObjects.RateLimiting
 {
@@ -123,6 +124,8 @@ namespace PennedObjects.RateLimiting
             _exitTimer.Change(timeUntilNextCheck, -1);
         }
 
+        #region Synchronous methods
+
         /// <summary>
         ///     Blocks the current thread until allowed to proceed or until the
         ///     specified timeout elapses.
@@ -174,8 +177,47 @@ namespace PennedObjects.RateLimiting
         /// </summary>
         public void WaitToProceed()
         {
-            WaitToProceed(Timeout.Infinite);
+            _ = WaitToProceed(Timeout.Infinite);
         }
+
+        #endregion Synchronous methods
+
+        #region Asynchronous methods
+
+        public async Task<bool> WaitToProceedAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
+        {
+            CheckDisposed();
+            if (millisecondsTimeout < -1)
+                throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+
+            bool entered = await _semaphore.WaitAsync(millisecondsTimeout, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (entered)
+            {
+                int timeToExit = unchecked(Environment.TickCount + TimeUnitMilliseconds);
+                _exitTimes.Enqueue(timeToExit);
+            }
+            return entered;
+        }
+
+        public async Task<bool> WaitToProceedAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+        {
+            long num = (long)timeout.TotalMilliseconds;
+            if (num < -1 || num > int.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "The timeout must be between -1 and Int32.MaxValue milliseconds.");
+
+            return await WaitToProceedAsync((int)timeout.TotalMilliseconds, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        public async Task WaitToProceedAsync(CancellationToken cancellationToken = default)
+        {
+            await WaitToProceedAsync(Timeout.Infinite, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        #endregion Asynchronous methods
 
         /// <summary>
         /// Throws an <see cref="ObjectDisposedException"/> if this object is disposed.
