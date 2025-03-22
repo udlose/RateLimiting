@@ -106,7 +106,7 @@ namespace PennedObjects.RateLimiting
                    && unchecked(exitTime - Environment.TickCount) <= 0)
             {
                 _semaphore.Release();
-                _exitTimes.TryDequeue(out exitTime);
+                _exitTimes.TryDequeue(out _);
             }
 
             // Try to get the next exit time from the queue and compute
