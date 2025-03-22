@@ -39,22 +39,23 @@ namespace PennedObjects.RateLimiting {
         private bool _isDisposed;
 
         /// <summary>
-        ///     Initializes a <see cref="RateGate" /> with a rate of <paramref name="occurrences" />
-        ///     per <paramref name="timeUnit" />.
+        ///     Initializes a new instance of the <see cref="RateGate"/> class with a specified rate of occurrences
+        ///     per time unit.
         /// </summary>
-        /// <param name="occurrences">Number of occurrences allowed per unit of time.</param>
-        /// <param name="timeUnit">Length of the time unit.</param>
+        /// <param name="occurrences">The number of occurrences allowed per unit of time.</param>
+        /// <param name="timeUnit">The length of the time unit.</param>
         /// <exception cref="ArgumentOutOfRangeException">
-        ///     If <paramref name="occurrences" /> or <paramref name="timeUnit" /> is negative.
+        ///     Thrown when <paramref name="occurrences"/> is less than or equal to zero, or when <paramref name="timeUnit"/> 
+        ///     is not a positive span of time, or when <paramref name="timeUnit"/> is greater than or equal to 2^32 milliseconds.
         /// </exception>
         public RateGate(int occurrences, TimeSpan timeUnit) {
             // Check the arguments.
             if (occurrences <= 0)
-                throw new ArgumentOutOfRangeException("occurrences", "Number of occurrences must be a positive integer");
-            if (timeUnit != timeUnit.Duration())
-                throw new ArgumentOutOfRangeException("timeUnit", "Time unit must be a positive span of time");
-            if (timeUnit >= TimeSpan.FromMilliseconds(UInt32.MaxValue))
-                throw new ArgumentOutOfRangeException("timeUnit", "Time unit must be less than 2^32 milliseconds");
+                throw new ArgumentOutOfRangeException(nameof(occurrences), "Number of occurrences must be a positive integer");
+            if (timeUnit <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be a positive span of time");
+            if (timeUnit >= TimeSpan.FromMilliseconds(uint.MaxValue))
+                throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be less than 2^32 milliseconds");
 
             Occurrences = occurrences;
             TimeUnitMilliseconds = (int) timeUnit.TotalMilliseconds;
@@ -123,7 +124,10 @@ namespace PennedObjects.RateLimiting {
         /// </summary>
         /// <param name="millisecondsTimeout">Number of milliseconds to wait, or -1 to wait indefinitely.</param>
         /// <returns>true if the thread is allowed to proceed, or false if timed out</returns>
-        public bool WaitToProceed(int millisecondsTimeout) {
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="millisecondsTimeout"/> is less than -1.</exception>
+        /// <exception cref="ObjectDisposedException">Thrown when the object is already disposed.</exception>
+        public bool WaitToProceed(int millisecondsTimeout)
+        {
             // Check the arguments.
             if (millisecondsTimeout < -1)
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
@@ -160,8 +164,12 @@ namespace PennedObjects.RateLimiting {
             WaitToProceed(Timeout.Infinite);
         }
 
-        // Throws an ObjectDisposedException if this object is disposed.
-        private void CheckDisposed() {
+        /// <summary>
+        /// Throws an <see cref="ObjectDisposedException"/> if this object is disposed.
+        /// </summary>
+        /// <exception cref="ObjectDisposedException">Thrown when the object is already disposed.</exception>
+        private void CheckDisposed()
+        {
             if (_isDisposed)
                 throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
         }
