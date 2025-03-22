@@ -2,7 +2,8 @@
 using System.Collections.Concurrent;
 using System.Threading;
 
-namespace PennedObjects.RateLimiting {
+namespace PennedObjects.RateLimiting
+{
     /// <summary>
     ///     http://www.pennedobjects.com/2010/10/better-rate-limiting-with-dot-net/
     ///     Used to control the rate of some occurrence per unit of time.
@@ -21,8 +22,8 @@ namespace PennedObjects.RateLimiting {
     ///         threads.
     ///     </para>
     /// </remarks>
-    public class RateGate : IDisposable {
-        
+    public class RateGate : IDisposable
+    {
         /// <summary>
         /// Timer used to trigger exiting the semaphore.
         /// </summary>
@@ -48,7 +49,8 @@ namespace PennedObjects.RateLimiting {
         ///     Thrown when <paramref name="occurrences"/> is less than or equal to zero, or when <paramref name="timeUnit"/> 
         ///     is not a positive span of time, or when <paramref name="timeUnit"/> is greater than or equal to 2^32 milliseconds.
         /// </exception>
-        public RateGate(int occurrences, TimeSpan timeUnit) {
+        public RateGate(int occurrences, TimeSpan timeUnit)
+        {
             // Check the arguments.
             if (occurrences <= 0)
                 throw new ArgumentOutOfRangeException(nameof(occurrences), "Number of occurrences must be a positive integer");
@@ -58,7 +60,7 @@ namespace PennedObjects.RateLimiting {
                 throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be less than 2^32 milliseconds");
 
             Occurrences = occurrences;
-            TimeUnitMilliseconds = (int) timeUnit.TotalMilliseconds;
+            TimeUnitMilliseconds = (int)timeUnit.TotalMilliseconds;
 
             // Create the semaphore, with the number of occurrences as the maximum count.
             _semaphore = new SemaphoreSlim(Occurrences, Occurrences);
@@ -84,7 +86,8 @@ namespace PennedObjects.RateLimiting {
         /// <summary>
         ///     Releases unmanaged resources held by an instance of this class.
         /// </summary>
-        public void Dispose() {
+        public void Dispose()
+        {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
@@ -94,12 +97,14 @@ namespace PennedObjects.RateLimiting {
         /// in the queue and then sets the timer for the nextexit time.
         /// </summary>
         /// <param name="state"></param>
-        private void ExitTimerCallback(object state) {
+        private void ExitTimerCallback(object state)
+        {
             // While there are exit times that are passed due still in the queue,
             // exit the semaphore and dequeue the exit time.
             int exitTime;
             while (_exitTimes.TryPeek(out exitTime)
-                   && unchecked(exitTime - Environment.TickCount) <= 0) {
+                   && unchecked(exitTime - Environment.TickCount) <= 0)
+            {
                 _semaphore.Release();
                 _exitTimes.TryDequeue(out exitTime);
             }
@@ -139,7 +144,8 @@ namespace PennedObjects.RateLimiting {
 
             // If we entered the semaphore, compute the corresponding exit time 
             // and add it to the queue.
-            if (entered) {
+            if (entered)
+            {
                 int timeToExit = unchecked(Environment.TickCount + TimeUnitMilliseconds);
                 _exitTimes.Enqueue(timeToExit);
             }
@@ -153,14 +159,16 @@ namespace PennedObjects.RateLimiting {
         /// </summary>
         /// <param name="timeout"></param>
         /// <returns>true if the thread is allowed to proceed, or false if timed out</returns>
-        public bool WaitToProceed(TimeSpan timeout) {
-            return WaitToProceed((int) timeout.TotalMilliseconds);
+        public bool WaitToProceed(TimeSpan timeout)
+        {
+            return WaitToProceed((int)timeout.TotalMilliseconds);
         }
 
         /// <summary>
         ///     Blocks the current thread indefinitely until allowed to proceed.
         /// </summary>
-        public void WaitToProceed() {
+        public void WaitToProceed()
+        {
             WaitToProceed(Timeout.Infinite);
         }
 
