@@ -161,6 +161,11 @@ namespace PennedObjects.RateLimiting
         /// <returns>true if the thread is allowed to proceed, or false if timed out</returns>
         public bool WaitToProceed(TimeSpan timeout)
         {
+            long num = (long)timeout.TotalMilliseconds;
+            if (num < -1 || num > int.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "The timeout must be between -1 and Int32.MaxValue milliseconds.");
+            }
             return WaitToProceed((int)timeout.TotalMilliseconds);
         }
 
