@@ -37,7 +37,7 @@ namespace PennedObjects.RateLimiting
         /// <summary>
         ///  Whether this instance is disposed.
         /// </summary>
-        private bool _isDisposed;
+        private int _isDisposed;
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="RateGate"/> class with a specified rate of occurrences
@@ -178,7 +178,7 @@ namespace PennedObjects.RateLimiting
         /// <exception cref="ObjectDisposedException">Thrown when the object is already disposed.</exception>
         private void CheckDisposed()
         {
-            if (_isDisposed)
+            if (Interlocked.CompareExchange(ref _isDisposed, 0, 0) != 0)
                 throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
         }
 
@@ -188,7 +188,7 @@ namespace PennedObjects.RateLimiting
         /// <param name="isDisposing">Whether this object is being disposed.</param>
         protected virtual void Dispose(bool isDisposing)
         {
-            if (!_isDisposed && isDisposing)
+            if (Interlocked.CompareExchange(ref _isDisposed, 1, 0) == 0 && isDisposing)
             {
                 // The semaphore and timer both implement IDisposable and 
                 // therefore must be disposed.
@@ -199,8 +199,6 @@ namespace PennedObjects.RateLimiting
                 _exitTimer.Dispose();
                 _exitTimer = null;
                 _exitTimes = null;
-
-                _isDisposed = true;
             }
         }
     }
