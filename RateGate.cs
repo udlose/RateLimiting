@@ -28,7 +28,7 @@ namespace PennedObjects.RateLimiting
         /// Timer used to trigger exiting the semaphore.
         /// </summary>
         private Timer _exitTimer;
-        private ConcurrentQueue<int> _exitTimes;
+        private readonly ConcurrentQueue<int> _exitTimes;
         /// <summary>
         /// Semaphore used to count and limit the number of occurrences per
         /// </summary>
@@ -198,7 +198,6 @@ namespace PennedObjects.RateLimiting
                 _semaphore = null;
                 _exitTimer.Dispose();
                 _exitTimer = null;
-                _exitTimes = null;
             }
         }
     }
