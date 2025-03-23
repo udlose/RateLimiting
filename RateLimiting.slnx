@@ -4,5 +4,6 @@
     <File Path=".gitignore" />
     <File Path="readme.md" />
   </Folder>
-  <Project Path="RateLimiting.csproj" />
+  <Project Path="RateLimiter/RateLimiter.csproj" Id="7c4127b6-a1a7-49f9-9230-7f48d4853a09" />
+  <Project Path="RateLimiting.csproj" Id="860e607a-019a-4d9d-8e07-bd7fe43be4ae" />
 </Solution>
