@@ -15,12 +15,21 @@ namespace PennedObjects.RateLimiting
         /// <returns>An <see cref="IEnumerable{T}"/> containing the elements of the source sequence.</returns>
         public static IEnumerable<T> LimitRate<T>(this IEnumerable<T> source, int count, TimeSpan timeUnit)
         {
-            using (var rateGate = new RateGate(count, timeUnit))
+            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "Count must be greater than zero.");
+            if (timeUnit <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be greater than zero.");
+
+            return LimitRateIterator();
+
+            IEnumerable<T> LimitRateIterator()
             {
-                foreach (var item in source)
+                using (RateGate rateGate = new RateGate(count, timeUnit))
                 {
-                    rateGate.WaitToProceed();
-                    yield return item;
+                    foreach (T item in source)
+                    {
+                        rateGate.WaitToProceed();
+                        yield return item;
+                    }
                 }
             }
         }
