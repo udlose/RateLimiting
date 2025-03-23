@@ -1,48 +1,42 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace RateLimiter
 {
     /// <summary>
-    ///     http://www.pennedobjects.com/2010/10/better-rate-limiting-with-dot-net/
-    ///     Used to control the rate of some occurrence per unit of time.
+    /// RateGate controls access to a resource based on a specified rate limit. It uses a semaphore and a timer to manage
+    /// token release times.
+    /// It supports synchronous and asynchronous waiting for resource access.
     /// </summary>
-    /// <remarks>
-    ///     <para>
-    ///         To control the rate of an action using a <see cref="RateGate" />,
-    ///         code should simply call <see cref="WaitToProceed()" /> prior to
-    ///         performing the action. <see cref="WaitToProceed()" /> will block
-    ///         the current thread until the action is allowed based on the rate
-    ///         limit.
-    ///     </para>
-    ///     <para>
-    ///         This class is thread safe. A single <see cref="RateGate" /> instance
-    ///         may be used to control the rate of an occurrence across multiple
-    ///         threads.
-    ///     </para>
-    /// </remarks>
     public class RateGate : IDisposable
     {
         /// <summary>
         /// Timer used to trigger exiting the semaphore.
         /// </summary>
         private Timer _exitTimer;
-        private readonly ConcurrentQueue<int> _exitTimes;
+
         /// <summary>
-        /// Semaphore used to count and limit the number of occurrences per
+        /// Stores exit times in a thread-safe manner using a ConcurrentQueue. This allows multiple threads to enqueue
+        /// and dequeue exit times safely.
+        /// </summary>
+        private readonly ConcurrentQueue<long> _exitTicks;
+
+        /// <summary>
+        /// A SemaphoreSlim instance used for controlling access to a resource across multiple threads. It allows a
+        /// specified number of threads to enter concurrently.
         /// </summary>
         private SemaphoreSlim _semaphore;
 
         /// <summary>
-        ///  Whether this instance is disposed.
+        /// Tracks the disposal state of an object, where 0 indicates it is not disposed and 1 indicates it is disposed.
         /// </summary>
         private int _isDisposed; // 0 = not disposed, 1 = disposed
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="RateGate"/> class with a specified rate of occurrences
-        ///     per time unit.
+        /// Stores the number of ticks representing a time unit. Used for time-related calculations or conversions.
         /// </summary>
         /// <param name="occurrences">The number of occurrences allowed per unit of time.</param>
         /// <param name="timeUnit">The length of the time unit.</param>
@@ -75,12 +69,13 @@ namespace RateLimiter
         }
 
         /// <summary>
-        ///     Number of occurrences allowed per unit of time.
+        /// Represents the number of times an event or item occurs. It is a read-only property.
         /// </summary>
         public int Occurrences { get; }
 
         /// <summary>
-        ///     The length of the time unit, in milliseconds.
+        /// Represents the duration in milliseconds for a time unit. It provides a way to access the time unit's length
+        /// in a precise format.
         /// </summary>
         public int TimeUnitMilliseconds { get; }
 
@@ -94,10 +89,9 @@ namespace RateLimiter
         }
 
         /// <summary>
-        /// Callback for the exit timer that exits the semaphore based on exit times
-        /// in the queue and then sets the timer for the next exit time.
+        /// Callback method for the exit timer. Releases expired tokens and reschedules the timer.
         /// </summary>
-        /// <param name="state">An object containing information to be used by the callback method.</param>
+        /// <param name="state">The state object passed to the callback.</param>
         private void ExitTimerCallback(object state)
         {
             // While there are exit times that are passed due still in the queue,
@@ -127,16 +121,14 @@ namespace RateLimiter
         #region Synchronous methods
 
         /// <summary>
-        ///     Blocks the current thread until allowed to proceed or until the
-        ///     specified timeout elapses.
+        /// Waits synchronously to proceed based on the rate limit.
         /// </summary>
-        /// <param name="millisecondsTimeout">Number of milliseconds to wait, or -1 to wait indefinitely.</param>
-        /// <returns>true if the thread is allowed to proceed, or false if timed out</returns>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="millisecondsTimeout"/> is less than -1.</exception>
-        /// <exception cref="ObjectDisposedException">Thrown when the object is already disposed.</exception>
+        /// <param name="millisecondsTimeout">The timeout in milliseconds to wait for.</param>
+        /// <returns>True if the wait succeeded, false if it timed out.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when millisecondsTimeout is less than -1.</exception>
+        /// <exception cref="ObjectDisposedException">Thrown when the RateGate is already disposed.</exception>
         public bool WaitToProceed(int millisecondsTimeout)
         {
-            // Check the arguments.
             if (millisecondsTimeout < -1)
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
 
@@ -160,8 +152,9 @@ namespace RateLimiter
         ///     Blocks the current thread until allowed to proceed or until the
         ///     specified timeout elapses.
         /// </summary>
-        /// <param name="timeout"></param>
-        /// <returns>true if the thread is allowed to proceed, or false if timed out</returns>
+        /// <param name="timeout">The timeout as a TimeSpan to wait for.</param>
+        /// <returns>True if the wait succeeded, false if it timed out.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when timeout is less than -1 or greater than int.MaxValue milliseconds.</exception>
         public bool WaitToProceed(TimeSpan timeout)
         {
             long num = (long)timeout.TotalMilliseconds;
@@ -173,7 +166,7 @@ namespace RateLimiter
         }
 
         /// <summary>
-        ///     Blocks the current thread indefinitely until allowed to proceed.
+        /// Waits synchronously to proceed based on the rate limit with an infinite timeout.
         /// </summary>
         public void WaitToProceed()
         {
@@ -184,6 +177,14 @@ namespace RateLimiter
 
         #region Asynchronous methods
 
+        /// <summary>
+        /// Waits asynchronously to proceed based on the rate limit.
+        /// </summary>
+        /// <param name="millisecondsTimeout">The timeout in milliseconds to wait for.</param>
+        /// <param name="cancellationToken">The cancellation token to observe.</param>
+        /// <returns>A task that represents the asynchronous wait operation. The task result is true if the wait succeeded, false if it timed out.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when millisecondsTimeout is less than -1.</exception>
+        /// <exception cref="ObjectDisposedException">Thrown when the RateGate is already disposed.</exception>
         public async Task<bool> WaitToProceedAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
         {
             CheckDisposed();
@@ -220,9 +221,9 @@ namespace RateLimiter
         #endregion Asynchronous methods
 
         /// <summary>
-        /// Throws an <see cref="ObjectDisposedException"/> if this object is disposed.
+        /// Checks if the RateGate has been disposed and throws an <see cref="ObjectDisposedException"/> if it has.
         /// </summary>
-        /// <exception cref="ObjectDisposedException">Thrown when the object is already disposed.</exception>
+        /// <exception cref="ObjectDisposedException">Thrown when this <see cref="RateGate"/> instance is already disposed.</exception>
         private void CheckDisposed()
         {
             if (Interlocked.CompareExchange(ref _isDisposed, 0, 0) != 0)
