@@ -53,6 +53,7 @@ namespace RateLimiter
             /// Returns an enumerator that iterates through the collection.
             /// </summary>
             /// <returns>An enumerator that can be used to iterate through the collection.</returns>
+            /// <remarks>Boxing is unavoidable here due to interface contract.</remarks>
             public IEnumerator<T> GetEnumerator() => new Enumerator(_source.GetEnumerator(), _count, _timeUnit);
 
             /// <summary>
@@ -97,12 +98,16 @@ namespace RateLimiter
                 /// <summary>
                 /// Gets the element in the collection at the current position of the enumerator.
                 /// </summary>
+                /// <remarks>Boxing is unavoidable here due to interface contract.</remarks>
                 object IEnumerator.Current => Current;
 
                 /// <summary>
                 /// Advances the enumerator to the next element of the collection.
                 /// </summary>
-                /// <returns>true if the enumerator was successfully advanced to the next element; false if the enumerator has passed the end of the collection.</returns>
+                /// <returns>
+                /// <c>true</c> if the enumerator was successfully advanced to the next element;
+                /// <c>false</c> if the enumerator has passed the end of the collection.
+                /// </returns>
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 public bool MoveNext()
                 {
