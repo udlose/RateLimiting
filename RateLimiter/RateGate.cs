@@ -78,11 +78,19 @@ namespace RateLimiter
         {
             // Validate arguments
             if (occurrences <= 0)
+            {
                 throw new ArgumentOutOfRangeException(nameof(occurrences), "Number of occurrences must be a positive integer");
+            }
+
             if (timeUnit <= TimeSpan.Zero)
+            {
                 throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be a positive span of time");
+            }
+
             if (timeUnit >= TimeSpan.FromMilliseconds(int.MaxValue))
+            {
                 throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be less than int.MaxValue milliseconds");
+            }
 
             Occurrences = occurrences;
             TimeUnitMilliseconds = (int)timeUnit.TotalMilliseconds;
@@ -108,12 +116,16 @@ namespace RateLimiter
         {
             // Use interlocked to ensure only one timer callback runs at a time
             if (Interlocked.CompareExchange(ref _timerCallbackRunning, 1, 0) != 0)
+            {
                 return;
+            }
 
             try
             {
                 if (Interlocked.CompareExchange(ref _isDisposed, 0, 0) != 0)
+                {
                     return;
+                }
 
                 int releasedCount = 0;
                 long currentTicks = _stopwatch.ElapsedTicks;
@@ -201,7 +213,9 @@ namespace RateLimiter
         public bool WaitToProceed(int millisecondsTimeout)
         {
             if (millisecondsTimeout < -1)
+            {
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+            }
 
             CheckDisposed();
 
@@ -302,7 +316,9 @@ namespace RateLimiter
         {
             CheckDisposed();
             if (millisecondsTimeout < -1)
+            {
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+            }
 
             bool entered;
             try
@@ -335,7 +351,9 @@ namespace RateLimiter
         {
             long num = (long)timeout.TotalMilliseconds;
             if (num < -1 || num > int.MaxValue)
+            {
                 throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "The timeout must be between -1 and Int32.MaxValue milliseconds.");
+            }
 
             return WaitToProceedAsync((int)timeout.TotalMilliseconds, cancellationToken);
         }
@@ -359,7 +377,9 @@ namespace RateLimiter
         private void CheckDisposed()
         {
             if (Interlocked.CompareExchange(ref _isDisposed, 0, 0) != 0)
+            {
                 throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            }
         }
 
         /// <summary>
