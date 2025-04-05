@@ -410,6 +410,8 @@ namespace RateLimiter
                 SemaphoreSlim semaphore = Interlocked.Exchange(ref _semaphore, null);
                 semaphore?.Dispose();
 
+                // Clear the queue
+                while (_exitTicks.TryDequeue(out _)) { }
                 Interlocked.Exchange(ref _pendingExitCount, 0);
             }
         }
