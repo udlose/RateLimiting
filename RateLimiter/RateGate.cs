@@ -482,6 +482,23 @@ namespace RateLimiter
         }
 
         /// <summary>
+        /// Safely clears and disposes of the exit timer if it exists. Ensures thread safety using a lock and
+        /// Interlocked.Exchange to ensure atomic operations.
+        /// </summary>
+        private void ClearTimer()
+        {
+            lock (_timerLock)
+            {
+                Timer timer = Interlocked.Exchange(ref _exitTimer, null);
+                if (timer != null)
+                {
+                    timer.Change(Timeout.Infinite, Timeout.Infinite);
+                    timer.Dispose();
+                }
+            }
+        }
+
+        /// <summary>
         /// Releases all resources used by this <see cref="RateGate"/>.
         /// </summary>
         public void Dispose()
@@ -499,16 +516,7 @@ namespace RateLimiter
             // Use thread-safe compare-exchange to ensure Dispose is only executed once
             if (Interlocked.CompareExchange(ref _isDisposed, 1, 0) == 0 && isDisposing)
             {
-                lock (_timerLock)
-                {
-                    if (_exitTimer != null)
-                    {
-                        _exitTimer.Change(Timeout.Infinite, Timeout.Infinite);
-                        _exitTimer.Dispose();
-                        _exitTimer = null;
-                    }
-                }
-
+                ClearTimer();
                 SemaphoreSlim semaphore = Interlocked.Exchange(ref _semaphore, null);
                 semaphore?.Dispose();
 
