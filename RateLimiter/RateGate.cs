@@ -312,7 +312,7 @@ namespace RateLimiter
         /// <returns>A task that represents the asynchronous wait operation. The task result is true if the wait succeeded, false if it timed out.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when millisecondsTimeout is less than -1.</exception>
         /// <exception cref="ObjectDisposedException">Thrown when the RateGate is already disposed.</exception>
-        public async Task<bool> WaitToProceedAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
+        public ValueTask<bool> WaitToProceedAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
         {
             CheckDisposed();
             if (millisecondsTimeout < -1)
@@ -320,24 +320,34 @@ namespace RateLimiter
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
             }
 
-            bool entered;
-            try
+            Task<bool> waitTask = _semaphore.WaitAsync(millisecondsTimeout, cancellationToken);
+            if (waitTask.Status == TaskStatus.RanToCompletion)
             {
-                entered = await _semaphore.WaitAsync(millisecondsTimeout, cancellationToken).ConfigureAwait(false);
-            }
-            catch (ObjectDisposedException)
-            {
-                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+                bool entered = waitTask.Result;
+                if (entered)
+                {
+                    long exitTick = _stopwatch.ElapsedTicks + _timeUnitTicks;
+                    _exitTicks.Enqueue(exitTick);
+                    Interlocked.Increment(ref _pendingExitCount);
+                    TryRescheduleTimer(exitTick);
+                }
+                return new ValueTask<bool>(entered);
             }
 
-            if (entered)
+            return new ValueTask<bool>(WaitToProceedAsyncCore(waitTask));
+
+            async Task<bool> WaitToProceedAsyncCore(Task<bool> task)
             {
-                long exitTick = _stopwatch.ElapsedTicks + _timeUnitTicks;
-                _exitTicks.Enqueue(exitTick);
-                Interlocked.Increment(ref _pendingExitCount);
-                TryRescheduleTimer(exitTick);
+                bool entered = await task.ConfigureAwait(false);
+                if (entered)
+                {
+                    long exitTick = _stopwatch.ElapsedTicks + _timeUnitTicks;
+                    _exitTicks.Enqueue(exitTick);
+                    Interlocked.Increment(ref _pendingExitCount);
+                    TryRescheduleTimer(exitTick);
+                }
+                return entered;
             }
-            return entered;
         }
 
         /// <summary>
@@ -347,7 +357,7 @@ namespace RateLimiter
         /// <param name="cancellationToken">The cancellation token to observe.</param>
         /// <returns>A task that represents the asynchronous wait operation. The task result is true if the wait succeeded, false if it timed out.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when timeout is less than -1 or greater than int.MaxValue milliseconds.</exception>
-        public Task<bool> WaitToProceedAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+        public ValueTask<bool> WaitToProceedAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
         {
             long num = (long)timeout.TotalMilliseconds;
             if (num < -1 || num > int.MaxValue)
@@ -363,9 +373,11 @@ namespace RateLimiter
         /// </summary>
         /// <param name="cancellationToken">The cancellation token to observe.</param>
         /// <returns>A task that represents the asynchronous wait operation.</returns>
-        public Task WaitToProceedAsync(CancellationToken cancellationToken = default)
+        public async ValueTask WaitToProceedAsync(CancellationToken cancellationToken = default)
         {
-            return WaitToProceedAsync(Timeout.Infinite, cancellationToken);
+            // This overload waits indefinitely. Since the infinite timeout is assumed to always succeed,
+            // we await the result but ignore it.
+            _ = await WaitToProceedAsync(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
         }
 
         #endregion Asynchronous methods
