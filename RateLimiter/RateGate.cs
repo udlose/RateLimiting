@@ -229,7 +229,7 @@ namespace RateLimiter
                     long msUntilNextExit = ticksUntilNextExit / TimeSpan.TicksPerMillisecond;
                     nextCheckDelayMs = (int)Math.Max(1, Math.Min(int.MaxValue, msUntilNextExit));
                 }
-                else if (_pendingExitCount > 0)
+                else if (Interlocked.CompareExchange(ref _pendingExitCount, 0, 0) > 0)
                 {
                     // If we couldn't check all tokens but there are still some, check again soon
                     nextCheckDelayMs = 1;
