@@ -370,7 +370,7 @@ namespace RateLimiter
             long num = (long)timeout.TotalMilliseconds;
             if (num < -1 || num > int.MaxValue)
             {
-                throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "The timeout must be between -1 and Int32.MaxValue milliseconds.");
+                throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "The timeout must be between -1 and int.MaxValue milliseconds.");
             }
             return WaitToProceed((int)timeout.TotalMilliseconds);
         }
@@ -449,7 +449,7 @@ namespace RateLimiter
             long num = (long)timeout.TotalMilliseconds;
             if (num < -1 || num > int.MaxValue)
             {
-                throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "The timeout must be between -1 and Int32.MaxValue milliseconds.");
+                throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "The timeout must be between -1 and int.MaxValue milliseconds.");
             }
 
             return WaitToProceedAsync((int)timeout.TotalMilliseconds, cancellationToken);
