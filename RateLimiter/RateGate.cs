@@ -83,10 +83,12 @@ namespace RateLimiter
         /// </summary>
         /// <param name="occurrences">The number of occurrences allowed within the time unit.</param>
         /// <param name="timeUnit">The time unit for the rate limit.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown when occurrences is less than or equal to 0, or <paramref name="timeUnit"/>
-        /// is less than or equal to zero or greater than <c>int.MaxValue</c> milliseconds.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="timeUnit"/> is too large, potentially causing overflow.</exception>
-        public RateGate(int occurrences, TimeSpan timeUnit)
+        /// <param name="maxPendingExits">The maximum number of pending exits allowed in the queue.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="occurrences"/> is less than or equal to 0, 
+        /// <paramref name="timeUnit"/> is less than or equal to zero or greater than <c>int.MaxValue</c> milliseconds, 
+        /// <paramref name="timeUnit"/> is too large, potentially causing overflow, or <paramref name="maxPendingExits"/> is less than or equal to 0 
+        /// or less than or equal to <paramref name="occurrences"/>.</exception>
+        public RateGate(int occurrences, TimeSpan timeUnit, int maxPendingExits = 10_000)
         {
             // Validate arguments
             if (occurrences <= 0)
@@ -110,12 +112,22 @@ namespace RateLimiter
                 throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit too large, could cause overflow");
             }
 
+            if (maxPendingExits <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxPendingExits), "Maximum pending exits must be a positive integer");
+            }
+
+            if (maxPendingExits <= occurrences)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxPendingExits), $"Maximum pending exits must be larger than {nameof(occurrences)}");
+            }
+
             Occurrences = occurrences;
             TimeUnitMilliseconds = (int)timeUnit.TotalMilliseconds;
 
             // Prevent resource exhaustion by limiting max pending exits
             // Calculate a reasonable maximum based on the rate limit
-            _maxPendingExits = Math.Max(occurrences * 10, 10_000);
+            _maxPendingExits = maxPendingExits;
 
             // Use Stopwatch for more precise, monotonic timing that doesn't wrap around
             _stopwatch = Stopwatch.StartNew();
@@ -460,7 +472,6 @@ namespace RateLimiter
             // Use thread-safe compare-exchange to ensure Dispose is only executed once
             if (Interlocked.CompareExchange(ref _isDisposed, 1, 0) == 0 && isDisposing)
             {
-                // Improved timer disposal with proper locking
                 lock (_timerLock)
                 {
                     if (_exitTimer != null)
