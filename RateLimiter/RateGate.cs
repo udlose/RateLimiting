@@ -174,15 +174,19 @@ namespace RateLimiter
                 long currentTicks = _stopwatch.ElapsedTicks;
                 int nextCheckDelayMs = TimeUnitMilliseconds;
 
-                // Process expired tokens - using a limited loop count to prevent excessive CPU usage
-                const int maxLoopsPerCallback = 1000;
-                int loopCount = 0;
+                // Get count once for efficiency
+                int pendingCount = Interlocked.CompareExchange(ref _pendingExitCount, 0, 0);
+                int itemsToProcess = Math.Min(pendingCount, 1_000);
 
-                // Local variable to track the earliest unexpired token
+                // Track the earliest unexpired token
                 long earliestRemainingTick = long.MaxValue;
 
-                while (loopCount < maxLoopsPerCallback && _exitTicks.TryPeek(out long nextExitTick))
+                // Process expired tokens
+                for (int i = 0; i < itemsToProcess; i++)
                 {
+                    if (!_exitTicks.TryPeek(out long nextExitTick))
+                        break;
+
                     if (nextExitTick > currentTicks)
                     {
                         // This is the earliest unexpired token
@@ -196,8 +200,6 @@ namespace RateLimiter
                         releasedCount++;
                         Interlocked.Decrement(ref _pendingExitCount);
                     }
-
-                    loopCount++;
                 }
 
                 // Release the semaphore based on the count of expired tokens
