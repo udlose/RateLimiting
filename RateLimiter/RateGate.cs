@@ -248,16 +248,24 @@ namespace RateLimiter
         /// <summary>
         /// Safely schedules the next timer callback
         /// </summary>
-        /// <param name="delayMs">Delay in milliseconds</param>
-        private void ScheduleNextTimerCallback(int delayMs)
+        /// <param name="delayInMilliseconds">Delay in milliseconds</param>
+        private void ScheduleNextTimerCallback(int delayInMilliseconds)
         {
             lock (_timerLock)
             {
-                if (_isDisposed == 0 && _exitTimer != null)
+                // First check disposal state
+                if (Interlocked.CompareExchange(ref _isDisposed, 0, 0) != 0)
+                    return;
+
+                // Capture the timer reference locally 
+                Timer timer = _exitTimer;
+
+                // Only proceed if we have a valid timer
+                if (timer != null)
                 {
                     try
                     {
-                        _exitTimer.Change(delayMs, Timeout.Infinite);
+                        timer.Change(delayInMilliseconds, Timeout.Infinite);
                     }
                     catch (ObjectDisposedException)
                     {
