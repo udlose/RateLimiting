@@ -160,18 +160,16 @@ namespace RateLimiter
         private void ExitTimerCallback(object state)
         {
             // Use interlocked to ensure only one timer callback runs at a time
-            if (Interlocked.CompareExchange(ref _timerCallbackRunning, 1, 0) != 0)
+            // Check if the timer callback is running or RateGate has been disposed. Avoid using a lock here to prevent deadlocks.
+            // Also, avoid using CheckDisposed() to avoid throwing exceptions from the timer callback.
+            if (Interlocked.CompareExchange(ref _timerCallbackRunning, 1, 0) != 0 ||
+                Interlocked.CompareExchange(ref _isDisposed, 0, 0) != 0)
             {
                 return;
             }
 
             try
             {
-                if (Interlocked.CompareExchange(ref _isDisposed, 0, 0) != 0)
-                {
-                    return;
-                }
-
                 int releasedCount = 0;
                 long currentTicks = _stopwatch.ElapsedTicks;
                 int nextCheckDelayMs = TimeUnitMilliseconds;
