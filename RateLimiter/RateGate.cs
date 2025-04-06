@@ -192,11 +192,21 @@ namespace RateLimiter
                 }
 
                 // Release the semaphore based on the count of expired tokens
+                // Limit the release count to the maximum semaphore count to avoid exceptions
                 if (releasedCount > 0)
                 {
                     try
                     {
-                        _semaphore?.Release(releasedCount);
+                        if (_semaphore != null)
+                        {
+                            // Release in batches to avoid exceeding the max count
+                            while (releasedCount > 0)
+                            {
+                                int batchSize = Math.Min(releasedCount, Occurrences);
+                                _semaphore.Release(batchSize);
+                                releasedCount -= batchSize;
+                            }
+                        }
                     }
                     catch (ObjectDisposedException)
                     {
