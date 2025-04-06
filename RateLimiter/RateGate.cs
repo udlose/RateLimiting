@@ -58,6 +58,16 @@ namespace RateLimiter
         private int _pendingExitCount;
 
         /// <summary>
+        /// Maximum allowed pending exits in the queue to prevent resource exhaustion
+        /// </summary>
+        private readonly int _maxPendingExits;
+
+        /// <summary>
+        /// Lock object for timer operations
+        /// </summary>
+        private readonly object _timerLock = new object();
+
+        /// <summary>
         /// Represents the number of times an event or item occurs. It is a read-only property.
         /// </summary>
         public int Occurrences { get; }
@@ -102,6 +112,10 @@ namespace RateLimiter
 
             Occurrences = occurrences;
             TimeUnitMilliseconds = (int)timeUnit.TotalMilliseconds;
+
+            // Prevent resource exhaustion by limiting max pending exits
+            // Calculate a reasonable maximum based on the rate limit
+            _maxPendingExits = Math.Max(occurrences * 10, 10_000);
 
             // Use Stopwatch for more precise, monotonic timing that doesn't wrap around
             _stopwatch = Stopwatch.StartNew();
@@ -192,20 +206,35 @@ namespace RateLimiter
                     nextCheckDelayMs = 1;
                 }
 
-                // Schedule the next callback
-                try
-                {
-                    _exitTimer?.Change(nextCheckDelayMs, Timeout.Infinite);
-                }
-                catch (ObjectDisposedException)
-                {
-                    // Timer was disposed
-                }
+                // Schedule the next callback with proper thread safety
+                ScheduleNextTimerCallback(nextCheckDelayMs);
             }
             finally
             {
                 // Allow the next callback to run
                 Interlocked.Exchange(ref _timerCallbackRunning, 0);
+            }
+        }
+
+        /// <summary>
+        /// Safely schedules the next timer callback
+        /// </summary>
+        /// <param name="delayMs">Delay in milliseconds</param>
+        private void ScheduleNextTimerCallback(int delayMs)
+        {
+            lock (_timerLock)
+            {
+                if (_isDisposed == 0 && _exitTimer != null)
+                {
+                    try
+                    {
+                        _exitTimer.Change(delayMs, Timeout.Infinite);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Timer was disposed
+                    }
+                }
             }
         }
 
@@ -218,6 +247,7 @@ namespace RateLimiter
         /// <returns>True if the wait succeeded, false if it timed out.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when millisecondsTimeout is less than -1.</exception>
         /// <exception cref="ObjectDisposedException">Thrown when the RateGate is already disposed.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when too many requests are queued.</exception>
         public bool WaitToProceed(int millisecondsTimeout)
         {
             if (millisecondsTimeout < -1)
@@ -226,6 +256,7 @@ namespace RateLimiter
             }
 
             CheckDisposed();
+            CheckQueueLimit();
 
             bool entered;
             try
@@ -257,6 +288,18 @@ namespace RateLimiter
         }
 
         /// <summary>
+        /// Checks if the queue limit has been exceeded
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown when too many requests are queued.</exception>
+        private void CheckQueueLimit()
+        {
+            if (Interlocked.CompareExchange(ref _pendingExitCount, 0, 0) >= _maxPendingExits)
+            {
+                throw new InvalidOperationException($"Rate limiting queue is full (maximum {_maxPendingExits} pending requests). The system may be under excessive load.");
+            }
+        }
+
+        /// <summary>
         /// Attempts to reschedule the timer based on the new exit tick.
         /// </summary>
         /// <param name="newExitTick">The new exit tick to consider for rescheduling.</param>
@@ -272,14 +315,7 @@ namespace RateLimiter
                     long msUntilExit = ticksUntilExit / TimeSpan.TicksPerMillisecond;
                     int delayMs = (int)Math.Max(1, Math.Min(int.MaxValue, msUntilExit));
 
-                    try
-                    {
-                        _exitTimer?.Change(delayMs, Timeout.Infinite);
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        // Timer was disposed
-                    }
+                    ScheduleNextTimerCallback(delayMs);
                 }
             }
         }
@@ -323,6 +359,8 @@ namespace RateLimiter
         public async ValueTask<bool> WaitToProceedAsync(int millisecondsTimeout, CancellationToken cancellationToken)
         {
             CheckDisposed();
+            CheckQueueLimit();
+
             if (millisecondsTimeout < -1)
             {
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
@@ -422,11 +460,15 @@ namespace RateLimiter
             // Use thread-safe compare-exchange to ensure Dispose is only executed once
             if (Interlocked.CompareExchange(ref _isDisposed, 1, 0) == 0 && isDisposing)
             {
-                Timer exitTimer = Interlocked.Exchange(ref _exitTimer, null);
-                if (exitTimer != null)
+                // Improved timer disposal with proper locking
+                lock (_timerLock)
                 {
-                    exitTimer.Change(Timeout.Infinite, Timeout.Infinite);
-                    exitTimer.Dispose();
+                    if (_exitTimer != null)
+                    {
+                        _exitTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                        _exitTimer.Dispose();
+                        _exitTimer = null;
+                    }
                 }
 
                 SemaphoreSlim semaphore = Interlocked.Exchange(ref _semaphore, null);
