@@ -312,7 +312,7 @@ namespace RateLimiter
         /// <returns>A task that represents the asynchronous wait operation. The task result is true if the wait succeeded, false if it timed out.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when millisecondsTimeout is less than -1.</exception>
         /// <exception cref="ObjectDisposedException">Thrown when the RateGate is already disposed.</exception>
-        public ValueTask<bool> WaitToProceedAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
+        public async ValueTask<bool> WaitToProceedAsync(int millisecondsTimeout, CancellationToken cancellationToken)
         {
             CheckDisposed();
             if (millisecondsTimeout < -1)
@@ -323,7 +323,12 @@ namespace RateLimiter
             Task<bool> waitTask = _semaphore.WaitAsync(millisecondsTimeout, cancellationToken);
             if (waitTask.Status == TaskStatus.RanToCompletion)
             {
+                // If the task is already completed, we can check the result directly
+                // This avoids unnecessary async/await overhead
+                // Note: This is a workaround for VSTHRD103 warning about calling async methods in sync context
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
                 bool entered = waitTask.Result;
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
                 if (entered)
                 {
                     long exitTick = _stopwatch.ElapsedTicks + _timeUnitTicks;
@@ -331,23 +336,20 @@ namespace RateLimiter
                     Interlocked.Increment(ref _pendingExitCount);
                     TryRescheduleTimer(exitTick);
                 }
-                return new ValueTask<bool>(entered);
-            }
 
-            return new ValueTask<bool>(WaitToProceedAsyncCore(waitTask));
-
-            async Task<bool> WaitToProceedAsyncCore(Task<bool> task)
-            {
-                bool entered = await task.ConfigureAwait(false);
-                if (entered)
-                {
-                    long exitTick = _stopwatch.ElapsedTicks + _timeUnitTicks;
-                    _exitTicks.Enqueue(exitTick);
-                    Interlocked.Increment(ref _pendingExitCount);
-                    TryRescheduleTimer(exitTick);
-                }
                 return entered;
             }
+
+            bool result = await waitTask.ConfigureAwait(false);
+            if (result)
+            {
+                long exitTick = _stopwatch.ElapsedTicks + _timeUnitTicks;
+                _exitTicks.Enqueue(exitTick);
+                Interlocked.Increment(ref _pendingExitCount);
+                TryRescheduleTimer(exitTick);
+            }
+
+            return result;
         }
 
         /// <summary>
