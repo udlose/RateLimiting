@@ -2,8 +2,11 @@
   <Folder Name="/Solution Items/">
     <File Path=".gitattributes" />
     <File Path=".gitignore" />
+    <File Path="CodeCoverage.runsettings" />
     <File Path="readme.md" />
+    <File Path="xunit.runner.json" />
   </Folder>
   <Project Path="RateLimiter/RateLimiter.csproj" Id="7c4127b6-a1a7-49f9-9230-7f48d4853a09" />
+  <Project Path="RateLimiterTests/RateLimiter.Tests.csproj" Id="73e302de-db87-4546-acf8-a7945e868a0f" />
   <Project Path="RateLimiting.csproj" Id="860e607a-019a-4d9d-8e07-bd7fe43be4ae" />
 </Solution>

@@ -9,8 +9,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	ProjectSection(SolutionItems) = preProject
 		.gitattributes = .gitattributes
 		.gitignore = .gitignore
+		CodeCoverage.runsettings = CodeCoverage.runsettings
 		readme.md = readme.md
+		xunit.runner.json = xunit.runner.json
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RateLimiter", "RateLimiter\RateLimiter.csproj", "{F2AF176A-4A1F-F27F-D01C-4C87870486C0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RateLimiter.Tests", "RateLimiterTests\RateLimiter.Tests.csproj", "{6E60B383-D4CE-7B67-9A54-41402F810FD8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -22,6 +28,14 @@ Global
 		{860E607A-019A-4D9D-8E07-BD7FE43BE4AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{860E607A-019A-4D9D-8E07-BD7FE43BE4AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{860E607A-019A-4D9D-8E07-BD7FE43BE4AE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F2AF176A-4A1F-F27F-D01C-4C87870486C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F2AF176A-4A1F-F27F-D01C-4C87870486C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F2AF176A-4A1F-F27F-D01C-4C87870486C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F2AF176A-4A1F-F27F-D01C-4C87870486C0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6E60B383-D4CE-7B67-9A54-41402F810FD8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E60B383-D4CE-7B67-9A54-41402F810FD8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E60B383-D4CE-7B67-9A54-41402F810FD8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E60B383-D4CE-7B67-9A54-41402F810FD8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
