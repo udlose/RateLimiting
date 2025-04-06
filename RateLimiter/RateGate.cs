@@ -134,7 +134,7 @@ namespace RateLimiter
             }
 
             Occurrences = occurrences;
-            TimeUnitMilliseconds = (int)timeUnit.TotalMilliseconds;
+            TimeUnitMilliseconds = (int)Math.Ceiling(timeUnit.TotalMilliseconds);
 
             // Prevent resource exhaustion by limiting max pending exits
             // Calculate a reasonable maximum based on the rate limit
