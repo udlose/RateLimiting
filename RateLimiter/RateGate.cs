@@ -73,7 +73,9 @@ namespace RateLimiter
         /// </summary>
         /// <param name="occurrences">The number of occurrences allowed within the time unit.</param>
         /// <param name="timeUnit">The time unit for the rate limit.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown when occurrences is less than or equal to 0, or timeUnit is less than or equal to zero or greater than int.MaxValue milliseconds.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when occurrences is less than or equal to 0, or <paramref name="timeUnit"/>
+        /// is less than or equal to zero or greater than <c>int.MaxValue</c> milliseconds.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="timeUnit"/> is too large, potentially causing overflow.</exception>
         public RateGate(int occurrences, TimeSpan timeUnit)
         {
             // Validate arguments
@@ -87,9 +89,15 @@ namespace RateLimiter
                 throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be a positive span of time");
             }
 
-            if (timeUnit >= TimeSpan.FromMilliseconds(int.MaxValue))
+            if (timeUnit.TotalMilliseconds > int.MaxValue)
             {
                 throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be less than int.MaxValue milliseconds");
+            }
+
+            // Set an upper bound on the timeUnit to prevent overflow
+            if (timeUnit.Ticks > long.MaxValue / 2)
+            {
+                throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit too large, could cause overflow");
             }
 
             Occurrences = occurrences;
