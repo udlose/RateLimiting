@@ -330,9 +330,11 @@ namespace RateLimiter
         /// <exception cref="InvalidOperationException">Thrown when too many requests are queued.</exception>
         private void CheckQueueLimit()
         {
-            if (Interlocked.CompareExchange(ref _pendingExitCount, 0, 0) >= _maxPendingExits)
+            int currentCount = Interlocked.CompareExchange(ref _pendingExitCount, 0, 0);
+            if (currentCount >= _maxPendingExits)
             {
-                throw new InvalidOperationException($"Rate limiting queue is full (maximum {_maxPendingExits} pending requests). The system may be under excessive load.");
+                throw new InvalidOperationException(
+                    $"Rate limiting queue is full (maximum {_maxPendingExits} pending requests, current: {currentCount}). The system may be under excessive load.");
             }
         }
 
