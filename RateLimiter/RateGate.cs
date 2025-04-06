@@ -79,15 +79,21 @@ namespace RateLimiter
         public int TimeUnitMilliseconds { get; }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="RateGate"/> class with the specified occurrences and time unit.
+        /// Initializes a new instance of the <see cref="RateGate"/> class with the specified rate limit parameters.
         /// </summary>
-        /// <param name="occurrences">The number of occurrences allowed within the time unit.</param>
-        /// <param name="timeUnit">The time unit for the rate limit.</param>
-        /// <param name="maxPendingExits">The maximum number of pending exits allowed in the queue.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="occurrences"/> is less than or equal to 0, 
-        /// <paramref name="timeUnit"/> is less than or equal to zero or greater than <c>int.MaxValue</c> milliseconds, 
-        /// <paramref name="timeUnit"/> is too large, potentially causing overflow, or <paramref name="maxPendingExits"/> is less than or equal to 0 
-        /// or less than or equal to <paramref name="occurrences"/>.</exception>
+        /// <param name="occurrences">The number of occurrences allowed within the specified time unit.</param>
+        /// <param name="timeUnit">The time unit within which the specified number of occurrences are allowed.</param>
+        /// <param name="maxPendingExits">The maximum number of pending exits allowed in the queue. Defaults to 10,000.</param>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when:
+        /// - <paramref name="occurrences"/> is less than or equal to 0.
+        /// - <paramref name="occurrences"/> is greater than or equal to <see cref="int.MaxValue"/>.
+        /// - <paramref name="timeUnit"/> is less than or equal to <see cref="TimeSpan.Zero"/>.
+        /// - <paramref name="timeUnit"/> has ticks greater than half of <see cref="long.MaxValue"/>.
+        /// - <paramref name="timeUnit"/> has total milliseconds greater than <see cref="int.MaxValue"/>.
+        /// - <paramref name="maxPendingExits"/> is less than or equal to 0.
+        /// - <paramref name="maxPendingExits"/> is less than or equal to <paramref name="occurrences"/>.
+        /// </exception>
         public RateGate(int occurrences, TimeSpan timeUnit, int maxPendingExits = 10_000)
         {
             // Validate arguments
@@ -96,20 +102,25 @@ namespace RateLimiter
                 throw new ArgumentOutOfRangeException(nameof(occurrences), "Number of occurrences must be a positive integer");
             }
 
+            if (occurrences >= int.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(occurrences), "Number of occurrences must be less than int.MaxValue");
+            }
+
             if (timeUnit <= TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be a positive span of time");
-            }
-
-            if (timeUnit.TotalMilliseconds > int.MaxValue)
-            {
-                throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be less than int.MaxValue milliseconds");
             }
 
             // Set an upper bound on the timeUnit to prevent overflow
             if (timeUnit.Ticks > long.MaxValue / 2)
             {
                 throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit too large, could cause overflow");
+            }
+
+            if (timeUnit.TotalMilliseconds > int.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be less than int.MaxValue milliseconds");
             }
 
             if (maxPendingExits <= 0)
@@ -119,7 +130,7 @@ namespace RateLimiter
 
             if (maxPendingExits <= occurrences)
             {
-                throw new ArgumentOutOfRangeException(nameof(maxPendingExits), $"Maximum pending exits must be larger than {nameof(occurrences)}");
+                throw new ArgumentOutOfRangeException(nameof(maxPendingExits), $"Maximum pending exits must be greater than {nameof(occurrences)}");
             }
 
             Occurrences = occurrences;
