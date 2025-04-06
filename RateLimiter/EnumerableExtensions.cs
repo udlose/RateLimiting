@@ -17,9 +17,20 @@ namespace RateLimiter
         /// <returns>An <see cref="IEnumerable{T}"/> containing the elements of the source sequence.</returns>
         public static IEnumerable<T> LimitRate<T>(this IEnumerable<T> source, int count, TimeSpan timeUnit)
         {
-            if (source == null) throw new ArgumentNullException(nameof(source));
-            if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "Count must be greater than zero.");
-            if (timeUnit <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be greater than zero.");
+            if (source == null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            if (count <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count), "Count must be greater than zero.");
+            }
+
+            if (timeUnit <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(timeUnit), "Time unit must be greater than zero.");
+            }
 
             // Avoid state machine creation by not using iterator methods
             return new RateLimitedEnumerable<T>(source, count, timeUnit);
