@@ -174,32 +174,40 @@ namespace RateLimiter
                 long currentTicks = _stopwatch.ElapsedTicks;
                 int nextCheckDelayMs = TimeUnitMilliseconds;
 
-                // Get count once for efficiency
-                int pendingCount = Interlocked.CompareExchange(ref _pendingExitCount, 0, 0);
-                int itemsToProcess = Math.Min(pendingCount, 1_000);
-
                 // Track the earliest unexpired token
                 long earliestRemainingTick = long.MaxValue;
 
                 // Process expired tokens
-                for (int i = 0; i < itemsToProcess; i++)
+                while (true)
                 {
-                    if (!_exitTicks.TryPeek(out long nextExitTick))
+                    int pendingCount = Interlocked.CompareExchange(ref _pendingExitCount, 0, 0);
+                    if (pendingCount == 0)
                         break;
 
-                    if (nextExitTick > currentTicks)
+                    int itemsToProcess = Math.Min(pendingCount, 1_000);
+
+                    for (int i = 0; i < itemsToProcess; i++)
                     {
-                        // This is the earliest unexpired token
-                        earliestRemainingTick = nextExitTick;
-                        break;
+                        if (!_exitTicks.TryPeek(out long nextExitTick))
+                            break;
+
+                        if (nextExitTick > currentTicks)
+                        {
+                            // This is the earliest unexpired token
+                            earliestRemainingTick = nextExitTick;
+                            break;
+                        }
+
+                        // Remove the expired token
+                        if (_exitTicks.TryDequeue(out _))
+                        {
+                            releasedCount++;
+                            Interlocked.Decrement(ref _pendingExitCount);
+                        }
                     }
 
-                    // Remove the expired token
-                    if (_exitTicks.TryDequeue(out _))
-                    {
-                        releasedCount++;
-                        Interlocked.Decrement(ref _pendingExitCount);
-                    }
+                    if (earliestRemainingTick != long.MaxValue)
+                        break;
                 }
 
                 // Release the semaphore based on the count of expired tokens
