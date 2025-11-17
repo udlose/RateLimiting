@@ -303,17 +303,24 @@ namespace RateLimiter
             CheckDisposed();
             CheckQueueLimit();
 
+            // Capture semaphore reference to avoid race with disposal
+            SemaphoreSlim semaphore = _semaphore;
+            if (semaphore == null)
+            {
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            }
+
             bool entered;
             try
             {
-                entered = _semaphore.Wait(millisecondsTimeout);
+                entered = semaphore.Wait(millisecondsTimeout);
             }
             catch (ObjectDisposedException)
             {
                 throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
             }
 
-            // If we entered the semaphore, compute the corresponding exit time 
+            // If we entered the semaphore, compute the corresponding exit time
             // and add it to the queue.
             if (entered)
             {
@@ -413,7 +420,23 @@ namespace RateLimiter
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
             }
 
-            Task<bool> waitTask = _semaphore.WaitAsync(millisecondsTimeout, cancellationToken);
+            // Capture semaphore reference to avoid race with disposal
+            SemaphoreSlim semaphore = _semaphore;
+            if (semaphore == null)
+            {
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            }
+
+            Task<bool> waitTask;
+            try
+            {
+                waitTask = semaphore.WaitAsync(millisecondsTimeout, cancellationToken);
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            }
+
             if (waitTask.Status == TaskStatus.RanToCompletion)
             {
                 // If the task is already completed, we can check the result directly
