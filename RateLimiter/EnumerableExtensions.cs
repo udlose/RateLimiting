@@ -83,6 +83,7 @@ namespace RateLimiter
                 private readonly TimeSpan _timeUnit;
                 private RateGate _rateGate;
                 private bool _initialized;
+                private bool _disposed;
 
                 /// <summary>
                 /// Initializes a new instance of the <see cref="Enumerator"/> struct.
@@ -98,6 +99,7 @@ namespace RateLimiter
                     _timeUnit = timeUnit;
                     _rateGate = null;
                     _initialized = false;
+                    _disposed = false;
                     Current = default;
                 }
 
@@ -122,6 +124,10 @@ namespace RateLimiter
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 public bool MoveNext()
                 {
+                    // If already disposed, cannot move next
+                    if (_disposed)
+                        return false;
+
                     // Lazy initialization of RateGate to avoid allocations if enumeration never happens
                     if (!_initialized)
                     {
@@ -153,9 +159,14 @@ namespace RateLimiter
                 /// </summary>
                 public void Dispose()
                 {
+                    if (_disposed)
+                        return;
+
+                    _disposed = true;
+
                     if (_initialized)
                     {
-                        _sourceEnumerator.Dispose();
+                        _sourceEnumerator?.Dispose();
                         _rateGate?.Dispose();
                         _rateGate = null;
                     }
