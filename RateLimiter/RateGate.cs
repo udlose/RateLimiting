@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,6 +17,7 @@ namespace RateLimiter
         /// <summary>
         /// Timer used to trigger exiting the semaphore.
         /// </summary>
+        [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Managed by the ClearTimer method.")]
         private Timer _exitTimer;
 
         /// <summary>
@@ -28,6 +30,7 @@ namespace RateLimiter
         /// A SemaphoreSlim instance used for controlling access to a resource across multiple threads. It allows a
         /// specified number of threads to enter concurrently.
         /// </summary>
+        [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Managed by the Dispose method.")]
         private SemaphoreSlim _semaphore;
 
         /// <summary>
@@ -303,17 +306,19 @@ namespace RateLimiter
             CheckDisposed();
             CheckQueueLimit();
 
+            // Capture semaphore reference to avoid race with disposal
+            SemaphoreSlim semaphore = _semaphore ?? throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
             bool entered;
             try
             {
-                entered = _semaphore.Wait(millisecondsTimeout);
+                entered = semaphore.Wait(millisecondsTimeout);
             }
             catch (ObjectDisposedException)
             {
                 throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
             }
 
-            // If we entered the semaphore, compute the corresponding exit time 
+            // If we entered the semaphore, compute the corresponding exit time
             // and add it to the queue.
             if (entered)
             {
@@ -413,7 +418,19 @@ namespace RateLimiter
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
             }
 
-            Task<bool> waitTask = _semaphore.WaitAsync(millisecondsTimeout, cancellationToken);
+            // Capture semaphore reference to avoid race with disposal
+            SemaphoreSlim semaphore = _semaphore ?? throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+
+            Task<bool> waitTask;
+            try
+            {
+                waitTask = semaphore.WaitAsync(millisecondsTimeout, cancellationToken);
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            }
+
             if (waitTask.Status == TaskStatus.RanToCompletion)
             {
                 // If the task is already completed, we can check the result directly
