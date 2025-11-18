@@ -83,7 +83,7 @@ namespace RateLimiter
                 private readonly TimeSpan _timeUnit;
                 private RateGate _rateGate;
                 private bool _initialized;
-                private bool _disposed;
+                private int _disposed; // 0 = not disposed, 1 = disposed
 
                 /// <summary>
                 /// Initializes a new instance of the <see cref="Enumerator"/> struct.
@@ -99,7 +99,7 @@ namespace RateLimiter
                     _timeUnit = timeUnit;
                     _rateGate = null;
                     _initialized = false;
-                    _disposed = false;
+                    _disposed = 0;
                     Current = default;
                 }
 
@@ -125,7 +125,8 @@ namespace RateLimiter
                 public bool MoveNext()
                 {
                     // If already disposed, cannot move next
-                    if (_disposed)
+                    // Use Interlocked for thread-safe read
+                    if (Interlocked.CompareExchange(ref _disposed, 0, 0) != 0)
                         return false;
 
                     // Lazy initialization of RateGate to avoid allocations if enumeration never happens
@@ -159,10 +160,10 @@ namespace RateLimiter
                 /// </summary>
                 public void Dispose()
                 {
-                    if (_disposed)
+                    // Use Interlocked.Exchange for atomic check-and-set to ensure thread-safety
+                    // If already disposed (was 1), return early
+                    if (Interlocked.Exchange(ref _disposed, 1) != 0)
                         return;
-
-                    _disposed = true;
 
                     if (_initialized)
                     {
