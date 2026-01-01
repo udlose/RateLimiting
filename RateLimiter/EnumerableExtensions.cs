@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -82,6 +83,8 @@ namespace RateLimiter
                 private readonly IEnumerator<T> _sourceEnumerator;
                 private readonly int _count;
                 private readonly TimeSpan _timeUnit;
+
+                [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Managed by the Dispose method.")]
                 private RateGate _rateGate;
                 private int _isInitialized; // 0 = not initialized, 1 = initialized
                 private int _isDisposed; // 0 = not disposed, 1 = disposed
@@ -138,6 +141,7 @@ namespace RateLimiter
                 /// <summary>
                 /// Gets the element in the collection at the current position of the enumerator.
                 /// </summary>
+                /// <remarks>Boxing is unavoidable here due to interface contract.</remarks>
                 object IEnumerator.Current
                 {
                     get

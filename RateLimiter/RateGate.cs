@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,6 +17,7 @@ namespace RateLimiter
         /// <summary>
         /// Timer used to trigger exiting the semaphore.
         /// </summary>
+        [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Managed by the ClearTimer method.")]
         private Timer _exitTimer;
 
         /// <summary>
@@ -28,6 +30,7 @@ namespace RateLimiter
         /// A SemaphoreSlim instance used for controlling access to a resource across multiple threads. It allows a
         /// specified number of threads to enter concurrently.
         /// </summary>
+        [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Managed by the Dispose method.")]
         private SemaphoreSlim _semaphore;
 
         /// <summary>
