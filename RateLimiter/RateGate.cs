@@ -307,7 +307,12 @@ namespace RateLimiter
             CheckQueueLimit();
 
             // Capture semaphore reference to avoid race with disposal
-            SemaphoreSlim semaphore = _semaphore ?? throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            SemaphoreSlim semaphore = _semaphore;
+            if (semaphore == null)
+            {
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            }
+
             bool entered;
             try
             {
@@ -419,7 +424,11 @@ namespace RateLimiter
             }
 
             // Capture semaphore reference to avoid race with disposal
-            SemaphoreSlim semaphore = _semaphore ?? throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            SemaphoreSlim semaphore = _semaphore;
+            if (semaphore == null)
+            {
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            }
 
             Task<bool> waitTask;
             try

@@ -41,6 +41,16 @@ namespace PennedObjects.RateLimiting
         private int _isDisposed;
 
         /// <summary>
+        /// Indicates whether a timer callback is currently executing.
+        /// </summary>
+        private int _timerCallbackRunning;
+
+        /// <summary>
+        /// Lock object for timer operations
+        /// </summary>
+        private readonly object _timerLock = new object();
+
+        /// <summary>
         ///     Initializes a new instance of the <see cref="RateGate"/> class with a specified rate of occurrences
         ///     per time unit.
         /// </summary>
@@ -100,28 +110,100 @@ namespace PennedObjects.RateLimiting
         /// <param name="state">An object containing information to be used by the callback method.</param>
         private void ExitTimerCallback(object state)
         {
-            // While there are exit times that are passed due still in the queue,
-            // exit the semaphore and dequeue the exit time.
-            int exitTime;
-            while (_exitTimes.TryPeek(out exitTime)
-                   && unchecked(exitTime - Environment.TickCount) <= 0)
+            // Use interlocked to ensure only one timer callback runs at a time
+            // Also check if RateGate has been disposed
+            if (Interlocked.CompareExchange(ref _timerCallbackRunning, 1, 0) != 0 ||
+                Interlocked.CompareExchange(ref _isDisposed, 0, 0) != 0)
             {
-                _semaphore.Release();
-                _exitTimes.TryDequeue(out _);
+                return;
             }
 
-            // Try to get the next exit time from the queue and compute
-            // the time until the next check should take place. If the 
-            // queue is empty, then no exit times will occur until at least
-            // one time unit has passed.
-            int timeUntilNextCheck;
-            if (_exitTimes.TryPeek(out exitTime))
-                timeUntilNextCheck = unchecked(exitTime - Environment.TickCount);
-            else
-                timeUntilNextCheck = TimeUnitMilliseconds;
+            try
+            {
+                int currentTickCount = Environment.TickCount;
+                int releasedCount = 0;
 
-            // Set the timer.
-            _exitTimer.Change(timeUntilNextCheck, -1);
+                // While there are exit times that are passed due still in the queue,
+                // count them and dequeue them
+                int exitTime;
+                while (_exitTimes.TryPeek(out exitTime)
+                       && unchecked(exitTime - currentTickCount) <= 0)
+                {
+                    _exitTimes.TryDequeue(out _);
+                    releasedCount++;
+                }
+
+                // Release the semaphore in a single batch operation
+                if (releasedCount > 0)
+                {
+                    SemaphoreSlim semaphore = _semaphore;
+                    if (semaphore != null)
+                    {
+                        try
+                        {
+                            semaphore.Release(releasedCount);
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            // Semaphore was disposed, exit gracefully
+                            return;
+                        }
+                        catch (SemaphoreFullException)
+                        {
+                            // This shouldn't happen in normal operation, but handle it gracefully
+                            return;
+                        }
+                    }
+                }
+
+                // Try to get the next exit time from the queue and compute
+                // the time until the next check should take place. If the
+                // queue is empty, then no exit times will occur until at least
+                // one time unit has passed.
+                int timeUntilNextCheck;
+                if (_exitTimes.TryPeek(out exitTime))
+                    timeUntilNextCheck = unchecked(exitTime - Environment.TickCount);
+                else
+                    timeUntilNextCheck = TimeUnitMilliseconds;
+
+                // Schedule the next timer callback with proper synchronization
+                ScheduleNextTimerCallback(timeUntilNextCheck);
+            }
+            finally
+            {
+                // Allow the next callback to run
+                Interlocked.Exchange(ref _timerCallbackRunning, 0);
+            }
+        }
+
+        /// <summary>
+        /// Safely schedules the next timer callback
+        /// </summary>
+        /// <param name="delayInMilliseconds">Delay in milliseconds</param>
+        private void ScheduleNextTimerCallback(int delayInMilliseconds)
+        {
+            lock (_timerLock)
+            {
+                // Check disposal state
+                if (Interlocked.CompareExchange(ref _isDisposed, 0, 0) != 0)
+                    return;
+
+                // Capture the timer reference locally to avoid race with disposal
+                Timer timer = _exitTimer;
+
+                // Only proceed if we have a valid timer
+                if (timer != null)
+                {
+                    try
+                    {
+                        timer.Change(delayInMilliseconds, -1);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Timer was disposed, exit gracefully
+                    }
+                }
+            }
         }
 
         #region Synchronous methods
@@ -142,10 +224,23 @@ namespace PennedObjects.RateLimiting
 
             CheckDisposed();
 
-            // Block until we can enter the semaphore or until the timeout expires.
-            bool entered = _semaphore.Wait(millisecondsTimeout);
+            // Capture semaphore reference to avoid race with disposal
+            SemaphoreSlim semaphore = _semaphore;
+            if (semaphore == null)
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
 
-            // If we entered the semaphore, compute the corresponding exit time 
+            bool entered;
+            try
+            {
+                // Block until we can enter the semaphore or until the timeout expires.
+                entered = semaphore.Wait(millisecondsTimeout);
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            }
+
+            // If we entered the semaphore, compute the corresponding exit time
             // and add it to the queue.
             if (entered)
             {
@@ -190,8 +285,21 @@ namespace PennedObjects.RateLimiting
             if (millisecondsTimeout < -1)
                 throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
 
-            bool entered = await _semaphore.WaitAsync(millisecondsTimeout, cancellationToken)
-                .ConfigureAwait(false);
+            // Capture semaphore reference to avoid race with disposal
+            SemaphoreSlim semaphore = _semaphore;
+            if (semaphore == null)
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+
+            bool entered;
+            try
+            {
+                entered = await semaphore.WaitAsync(millisecondsTimeout, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new ObjectDisposedException($"{nameof(RateGate)} is already disposed");
+            }
 
             if (entered)
             {
@@ -237,17 +345,35 @@ namespace PennedObjects.RateLimiting
         {
             if (Interlocked.CompareExchange(ref _isDisposed, 1, 0) == 0 && isDisposing)
             {
-                // Cancel the timer first to prevent new callbacks
-                _exitTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                // Safely dispose of the timer first to prevent new callbacks
+                ClearTimer();
 
-                // The semaphore and timer both implement IDisposable and 
-                // therefore must be disposed.
-                // Explicitly set the members to null to cause NullReferenceException
-                // if someone tries to use this object after it's disposed.
-                _semaphore.Dispose();
-                _semaphore = null;
-                _exitTimer.Dispose();
-                _exitTimer = null;
+                // Dispose and null out the semaphore using interlocked exchange
+                SemaphoreSlim semaphore = Interlocked.Exchange(ref _semaphore, null);
+                semaphore?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Safely clears and disposes of the exit timer if it exists.
+        /// </summary>
+        private void ClearTimer()
+        {
+            lock (_timerLock)
+            {
+                Timer timer = Interlocked.Exchange(ref _exitTimer, null);
+                if (timer != null)
+                {
+                    try
+                    {
+                        timer.Change(Timeout.Infinite, Timeout.Infinite);
+                        timer.Dispose();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Timer already disposed, ignore
+                    }
+                }
             }
         }
     }
